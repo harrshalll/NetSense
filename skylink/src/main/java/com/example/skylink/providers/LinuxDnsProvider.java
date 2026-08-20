@@ -148,11 +148,18 @@ public class LinuxDnsProvider implements DnsProvider {
         }
     }
 
-    private String executeCommand(String command) throws IOException, InterruptedException {
+    private String executeCommand(String command)
+            throws IOException, InterruptedException {
 
         ProcessBuilder processBuilder = new ProcessBuilder(
                 "cmd.exe",
                 "/c",
+                "wsl.exe",
+                "-d",
+                "Ubuntu-24.04",
+                "--",
+                "bash",
+                "-c",
                 command
         );
 
@@ -160,22 +167,27 @@ public class LinuxDnsProvider implements DnsProvider {
 
         Process process = processBuilder.start();
 
-        String output = new String(
-                process.getInputStream().readAllBytes()
-        );
+        String output =
+                new String(process.getInputStream().readAllBytes());
 
-        int exitCode = process.waitFor();
+        boolean finished =
+                process.waitFor(5, TimeUnit.SECONDS);
 
-        if (exitCode != 0) {
+        if (!finished) {
+            process.destroyForcibly();
+            throw new IOException("Linux command timed out");
+        }
+
+        if (process.exitValue() != 0) {
             throw new IOException(
                     "Linux command failed with exit code "
-                            + exitCode
+                            + process.exitValue()
                             + ". Output: "
                             + output
             );
         }
 
-        return output;
+        return output.trim();
     }
 
     @Override
